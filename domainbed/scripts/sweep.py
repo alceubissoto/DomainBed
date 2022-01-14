@@ -96,7 +96,7 @@ def all_test_env_combinations(n):
             yield [i, j]
 
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
-    data_dir, task, holdout_fraction, single_test_envs, hparams):
+    data_dir, task, holdout_fraction, single_test_envs, hparams, csv, testcsv):
     args_list = []
     for trial_seed in range(n_trials):
         for dataset in dataset_names:
@@ -112,12 +112,14 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                         train_args = {}
                         train_args['dataset'] = dataset
                         train_args['algorithm'] = algorithm
-                        train_args['test_envs'] = test_envs
+                        train_args['test_envs'] = 0 # test_envs
                         train_args['holdout_fraction'] = holdout_fraction
                         train_args['hparams_seed'] = hparams_seed
                         train_args['data_dir'] = data_dir
                         train_args['task'] = task
                         train_args['trial_seed'] = trial_seed
+                        train_args['csv'] = csv
+                        train_args['testcsv'] = testcsv
                         train_args['seed'] = misc.seed_hash(dataset,
                             algorithm, test_envs, hparams_seed, trial_seed)
                         if steps is not None:
@@ -153,6 +155,8 @@ if __name__ == "__main__":
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
     parser.add_argument('--skip_confirmation', action='store_true')
+    parser.add_argument('--csv', type=str)
+    parser.add_argument('--testcsv', type=str)
     args = parser.parse_args()
 
     args_list = make_args_list(
@@ -166,7 +170,9 @@ if __name__ == "__main__":
         task=args.task,
         holdout_fraction=args.holdout_fraction,
         single_test_envs=args.single_test_envs,
-        hparams=args.hparams
+        hparams=args.hparams,
+        csv=args.csv,
+        testcsv=args.testcsv,
     )
 
     jobs = [Job(train_args, args.output_dir) for train_args in args_list]

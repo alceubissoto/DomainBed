@@ -48,6 +48,8 @@ if __name__ == "__main__":
         help="For domain adaptation, % of test to use unlabeled for training.")
     parser.add_argument('--skip_model_save', action='store_true')
     parser.add_argument('--save_model_every_checkpoint', action='store_true')
+    parser.add_argument('--csv', type=str)
+    parser.add_argument('--testcsv', type=str)
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -96,8 +98,12 @@ if __name__ == "__main__":
         device = "cpu"
 
     if args.dataset in vars(datasets):
-        dataset = vars(datasets)[args.dataset](args.data_dir,
-            args.test_envs, hparams)
+        if args.dataset == 'ISIC2019':
+            dataset = vars(datasets)[args.dataset](args.data_dir, args.csv, args.testcsv, 
+                False, hparams)
+        else:
+            dataset = vars(datasets)[args.dataset](args.data_dir,
+                args.test_envs, hparams)
     else:
         raise NotImplementedError
 
@@ -124,6 +130,7 @@ if __name__ == "__main__":
             misc.seed_hash(args.trial_seed, env_i))
 
         if env_i in args.test_envs:
+            print("entered in test_envs")
             uda, in_ = misc.split_dataset(in_,
                 int(len(in_)*args.uda_holdout_fraction),
                 misc.seed_hash(args.trial_seed, env_i))
@@ -158,7 +165,8 @@ if __name__ == "__main__":
         num_workers=dataset.N_WORKERS)
         for i, (env, env_weights) in enumerate(uda_splits)
         if i in args.test_envs]
-
+    
+    print("splits:", in_splits, out_splits, uda_splits)
     eval_loaders = [FastDataLoader(
         dataset=env,
         batch_size=64,
@@ -185,7 +193,7 @@ if __name__ == "__main__":
     uda_minibatches_iterator = zip(*uda_loaders)
     checkpoint_vals = collections.defaultdict(lambda: [])
 
-    steps_per_epoch = min([len(env)/hparams['batch_size'] for env,_ in in_splits])
+    steps_per_epoch = max([len(env)/hparams['batch_size'] for env,_ in in_splits])
 
     n_steps = args.steps or dataset.N_STEPS
     checkpoint_freq = args.checkpoint_freq or dataset.CHECKPOINT_FREQ
@@ -231,7 +239,7 @@ if __name__ == "__main__":
 
             evals = zip(eval_loader_names, eval_loaders, eval_weights)
             for name, loader, weights in evals:
-                acc = misc.accuracy(algorithm, loader, weights, device)
+                acc = misc.auc(algorithm, loader, weights, device)
                 results[name+'_acc'] = acc
 
             results['mem_gb'] = torch.cuda.max_memory_allocated() / (1024.*1024.*1024.)

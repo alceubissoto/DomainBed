@@ -9,8 +9,10 @@ from torch.utils.data import TensorDataset, Subset
 from torchvision.datasets import MNIST, ImageFolder
 from torchvision.transforms.functional import rotate
 
-from wilds.datasets.camelyon17_dataset import Camelyon17Dataset
-from wilds.datasets.fmow_dataset import FMoWDataset
+#from wilds.datasets.camelyon17_dataset import Camelyon17Dataset
+#from wilds.datasets.fmow_dataset import FMoWDataset
+import itertools
+from domainbed.dataset_loader import CSVDataset, CSVDatasetWithName
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -30,7 +32,9 @@ DATASETS = [
     "SVIRO",
     # WILDS datasets
     "WILDSCamelyon",
-    "WILDSFMoW"
+    "WILDSFMoW",
+    # Skin
+    "ISIC2019",
 ]
 
 def get_dataset_class(dataset_name):
@@ -216,6 +220,57 @@ class MultipleEnvironmentImageFolder(MultipleDomainDataset):
 
         self.input_shape = (3, 224, 224,)
         self.num_classes = len(self.datasets[-1].classes)
+
+class ISIC2019(MultipleDomainDataset):
+    ENVIRONMENTS=["0"]
+    N_WORKERS=4
+    def __init__(self, root, csv, test_csv, augment, hparams):
+        super().__init__()
+        self.num_classes = 2
+        environments = ["dark_corner","hair","gel_border","gel_bubble","ruler","ink","patches"]
+        combs = []
+        for L in range(0, len(environments)+1):
+            for subset in itertools.combinations(environments, L):
+                combs.append(subset)
+        
+        transform = transforms.Compose([
+            transforms.Resize((224,224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+        augment_transform = transforms.Compose([
+            # transforms.Resize((224,224)),
+            transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(0.3, 0.3, 0.3, 0.3),
+            transforms.RandomGrayscale(),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        self.datasets = []
+        test_dataset = CSVDataset(root, test_csv, 'image', 'label', transform=transform, add_extension='.jpeg')
+        self.datasets.append(test_dataset)
+        
+        for i, comb in enumerate(combs):
+
+            if augment:
+                env_transform = augment_transform
+            else:
+                env_transform = transform
+            
+            env_dataset = CSVDataset(root, csv, 'image', 'label', transform=env_transform, add_extension='.jpeg', environment=comb)
+            if len(env_dataset) > 32 and len(env_dataset.classes) == 2:
+                print(len(env_dataset),len(env_dataset.classes))
+                self.datasets.append(env_dataset)
+
+        self.input_shape = (3, 224, 224,)
+        self.num_classes = len(self.datasets[-1].classes)
+      
+        
 
 class VLCS(MultipleEnvironmentImageFolder):
     CHECKPOINT_FREQ = 300

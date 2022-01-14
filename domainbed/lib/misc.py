@@ -17,7 +17,8 @@ import numpy as np
 import torch
 import tqdm
 from collections import Counter
-
+from sklearn.metrics import roc_auc_score
+import torch.nn.functional as F
 
 def l2_between_dicts(dict_1, dict_2):
     assert len(dict_1) == len(dict_2)
@@ -174,6 +175,33 @@ def accuracy(network, loader, weights, device):
     network.train()
 
     return correct / total
+
+def auc(network, loader, weights, device):
+    network.eval()
+    all_preds = []
+    all_labels = []
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device)
+            y = y.to(device)
+            p = network.predict(x)
+           
+            all_preds += list(F.softmax(p, dim=1).cpu().data.numpy())
+            all_labels += list(y.cpu().data.numpy())
+            
+    
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+    if len(np.unique(all_labels)) > 1:
+        auc = roc_auc_score(all_labels, all_preds[:, 1])
+        auc = "{:.2f}auc".format(auc)
+    else:
+        auc = accuracy(network, loader, weights, device)
+        auc = "{:.2f}acc".format(auc)
+        
+    network.train()
+
+    return auc
 
 class Tee:
     def __init__(self, fname, mode="a"):
