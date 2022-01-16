@@ -153,9 +153,13 @@ if __name__ == "__main__":
     results_file = "results.tex" if args.latex else "results.txt"
 
     sys.stdout = misc.Tee(os.path.join(args.input_dir, results_file), "w")
-
     records = reporting.load_records(args.input_dir)
-
+    # Remove 'acc' or 'auc' at the end of the runs results.
+    for idx, run in enumerate(records):
+        for k in run.keys():
+            if '_acc' in k:
+                records[idx][k] = records[idx][k].replace("acc","")
+                records[idx][k] = float(records[idx][k].replace("auc",""))
     if args.latex:
         print("\\documentclass{article}")
         print("\\usepackage{booktabs}")
